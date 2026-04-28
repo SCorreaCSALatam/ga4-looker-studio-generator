@@ -1,0 +1,1 @@
+# ga4-looker-studio-generator
