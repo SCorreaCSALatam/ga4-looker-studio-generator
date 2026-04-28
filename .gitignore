@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+client_secret.json
+*.egg-info/
