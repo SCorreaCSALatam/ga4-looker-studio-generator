@@ -2,6 +2,8 @@
 
 La interfaz puede **listar cuentas y propiedades GA4** tras iniciar sesión con Google. Usa la [Google Analytics Admin API](https://developers.google.com/analytics/devguides/config/admin/v1) (método `accountSummaries.list`) con permiso de solo lectura.
 
+**Por qué hablamos de «Google Cloud» / consola de desarrolladores:** no es para «configurar GA4» en sí. Google obliga a que **cada aplicación** que llame a sus APIs esté registrada (quién es el programa, qué permisos pide). Ese registro gratuito se hace en la misma consola donde se crean credenciales OAuth. Los datos de GA4 siguen siendo los de siempre; solo añades «esta herramienta puede pedir la lista de propiedades si el usuario inicia sesión y acepta».
+
 ## 1. Proyecto en Google Cloud
 
 1. Entra en [Google Cloud Console](https://console.cloud.google.com/) y crea o elige un proyecto.
@@ -22,15 +24,20 @@ La interfaz puede **listar cuentas y propiedades GA4** tras iniciar sesión con 
 3. **URI de redirección autorizados**: debe coincidir **exactamente** con la URL de callback de la herramienta, por ejemplo:
    - `http://127.0.0.1:8765/oauth/callback`  
    Si cambias el puerto (`PORT`) o usas otra base, añade también esa URI (y define `GA_LS_BASE_URL` en el entorno, p. ej. `http://127.0.0.1:9000`).
-4. Descarga el JSON del cliente o copia **ID de cliente** y **Secreto del cliente**.
+4. **Orígenes JavaScript autorizados** (necesarios para el botón **Iniciar sesión con Google** en la interfaz): añade el **origen** de la app, **sin** ruta ni barra final, por ejemplo `http://127.0.0.1:8765` o `https://tu-servicio.onrender.com`. Sin esto, el popup de Google puede fallar al canjear el código.
+5. Descarga el JSON del cliente o copia **ID de cliente** y **Secreto del cliente**.
 
 ## 4. Poner el secreto en el proyecto
 
-**Opción A — archivo (recomendado en local)**  
-Renombra el JSON descargado a `client_secret.json` y colócalo en la **raíz del repositorio** (junto a `README.md`).  
+**Opción A — asistente en la interfaz (recomendado para usuarios finales)**  
+Si OAuth aún no está configurado, en la página principal aparece un formulario **Guardar credenciales**. Pega el **Client ID**, el **Client secret** y la **URI de redirección** (la misma que añadiste en Google Cloud, p. ej. `http://127.0.0.1:8765/oauth/callback`).  
+Se guarda en tu carpeta de usuario, **no** en el repo: `%USERPROFILE%\.ga4-looker-studio-link-tool\client_secret.json` (Windows) o `~/.ga4-looker-studio-link-tool/client_secret.json`. Luego usa **Iniciar sesión con Google** (y configura también los **orígenes JavaScript** en Google Cloud, sección 3).
+
+**Opción B — archivo en la raíz del repo (desarrollo)**  
+Renombra el JSON descargado a `client_secret.json` y colócalo en la **raíz del repositorio** (junto a `README.md`). Tiene prioridad sobre el archivo del asistente si ambos existen.  
 No subas ese archivo a Git: está en `.gitignore`.
 
-**Opción B — variables de entorno**
+**Opción C — variables de entorno**
 
 ```text
 GOOGLE_OAUTH_CLIENT_ID=....apps.googleusercontent.com
@@ -45,7 +52,7 @@ pip install -r requirements.txt
 python src/web_app.py
 ```
 
-Abre la URL indicada en consola, pulsa **Conectar con Google** y acepta los permisos.
+Abre la URL indicada en consola, pulsa **Iniciar sesión con Google** (o el enlace de redirección si el popup falla) y acepta los permisos.
 
 ## Dónde se guardan los tokens
 
@@ -70,6 +77,7 @@ La cuenta con la que inicias sesión debe poder **ver** las propiedades en la in
 
 | Problema | Qué revisar |
 |----------|-------------|
-| `redirect_uri_mismatch` | La URI en Cloud Console debe ser idéntica a `GA_LS_BASE_URL` + `/oauth/callback`. |
+| `redirect_uri_mismatch` | La URI en Cloud Console debe ser **idéntica** a la del formulario / `client_secret.json` / `GOOGLE_OAUTH_REDIRECT_URI` y a la URL real del navegador al volver de Google. |
 | Error 403 en la Admin API | API habilitada y scope `analytics.readonly` en el consentimiento. |
 | Lista vacía | Cuenta sin propiedades GA4, o sin acceso a ninguna. |
+| Popup / «Iniciar sesión con Google» falla al canjear | En el cliente OAuth, **Orígenes JavaScript autorizados** deben incluir el origen exacto de la app (p. ej. `https://tu-app.onrender.com`). |

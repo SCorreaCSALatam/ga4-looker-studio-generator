@@ -11,7 +11,7 @@
     fieldset { border: 1px solid #ccc; border-radius: 6px; margin: 0 0 1rem; padding: 0.75rem 1rem; }
     legend { font-weight: 600; padding: 0 0.35rem; }
     label { display: block; margin: 0.5rem 0 0.15rem; font-size: 0.85rem; }
-    input[type="text"], textarea, select { width: 100%; box-sizing: border-box; padding: 0.35rem 0.5rem; border: 1px solid #bbb; border-radius: 4px; font-size: 0.95rem; }
+    input[type="text"], input[type="password"], textarea, select { width: 100%; box-sizing: border-box; padding: 0.35rem 0.5rem; border: 1px solid #bbb; border-radius: 4px; font-size: 0.95rem; }
     textarea { min-height: 4rem; font-family: ui-monospace, monospace; }
     .row { display: flex; gap: 1rem; flex-wrap: wrap; }
     .row label { flex: 1 1 8rem; }
@@ -30,14 +30,34 @@
     .oauth-bar { padding: 0.75rem 1rem; background: #f1f3f4; border-radius: 6px; margin-bottom: 1rem; font-size: 0.9rem; }
     .oauth-bar form { display: inline; margin-left: 0.5rem; }
     #ga_ids_manual { margin-top: 0.5rem; }
+    .oauth-setup { background: #e8f0fe; border: 1px solid #aecbfa; border-radius: 6px; padding: 0.75rem 1rem; margin-bottom: 1rem; font-size: 0.9rem; }
+    .oauth-setup button { margin-top: 0.75rem; }
+    .gsi-google-btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+      padding: 0.55rem 1.1rem; border: 1px solid #747775; border-radius: 4px;
+      background: #fff; color: #1f1f1f; font-size: 0.95rem; font-weight: 500;
+      cursor: pointer; font-family: Roboto, system-ui, sans-serif; margin-top: 0.25rem;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    }
+    .gsi-google-btn:hover { background: #f8f9fa; border-color: #5f6368; }
+    .gsi-google-btn .gsi-logo { width: 18px; height: 18px; flex-shrink: 0; }
+    .oauth-alt { margin-top: 0.65rem; font-size: 0.85rem; }
+    .oauth-step1 { background: #e8f0fe; border: 1px solid #aecbfa; border-radius: 6px; padding: 0.85rem 1rem; margin-bottom: 0.75rem; font-size: 0.92rem; line-height: 1.45; }
+    .oauth-step1 h2 { font-size: 1rem; margin: 0 0 0.5rem 0; font-weight: 600; }
+    .oauth-details { margin-top: 0.65rem; font-size: 0.85rem; color: #3c4043; }
+    .oauth-details summary { cursor: pointer; color: #1a73e8; font-weight: 500; }
+    .oauth-details[open] summary { margin-bottom: 0.35rem; }
   </style>
 </head>
 <body>
   <h1>Generador de enlaces Looker Studio</h1>
-  <p class="hint">La app corre solo en tu equipo; las URLs se generan aquí. Conectar Google sirve para listar propiedades GA4 (Analytics Admin API).</p>
+  <p class="hint">La app genera enlaces de Looker Studio. Para <strong>elegir propiedad GA4 en un menú</strong> hace falta que una persona inicie sesión con Google; antes, alguien de tu equipo debe registrar <strong>esta aplicación</strong> ante Google (una vez) — no es lo mismo que entrar a GA4.</p>
 
   % if oauth_flash_ok:
   <div class="ok">Cuenta de Google vinculada correctamente. Ya puedes elegir una propiedad en la lista.</div>
+  % end
+  % if oauth_flash_cfg_ok:
+  <div class="ok">Paso 1 listo. Usa el botón <strong>Iniciar sesión con Google</strong> que aparece arriba (o el enlace de redirección) y acepta los permisos.</div>
   % end
   % if oauth_flash_err:
   <div class="err">{{oauth_flash_err}}</div>
@@ -54,11 +74,75 @@
           <button type="submit" class="secondary">Desconectar</button>
         </form>
       % else:
-        <a class="btnlink" href="/connect" style="margin-top:0">Conectar con Google</a>
-        <span class="hint"> (permite elegir cuenta y propiedad GA4 sin teclear IDs)</span>
+        <p class="hint" style="margin:0 0 0.35rem 0">Inicia sesión con la cuenta Google que tenga acceso a GA4 para rellenar la lista de propiedades.</p>
+        <button type="button" class="gsi-google-btn" id="btn-gis-google" onclick="requestGoogleGISLogin(); return false;" title="Abre el consentimiento de Google en una ventana emergente">
+          <svg class="gsi-logo" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6C44.21 39.92 48 32.83 48 24c0-1.64-.15-3.19-.43-4.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+          Iniciar sesión con Google
+        </button>
+        <p class="oauth-alt"><a href="/connect">Si falla la ventana emergente, abrir conexión por redirección</a> (misma cuenta, otra forma de flujo).</p>
+        <script>window.GIS_CLIENT_ID = {{!gis_client_id_json}};</script>
+        <script src="https://accounts.google.com/gsi/client" async defer onload="initGisCodeClient()"></script>
+        <script>
+        var __gisCodeClient = null;
+        function initGisCodeClient() {
+          if (!window.google || !window.GIS_CLIENT_ID) return;
+          __gisCodeClient = google.accounts.oauth2.initCodeClient({
+            client_id: window.GIS_CLIENT_ID,
+            scope: 'https://www.googleapis.com/auth/analytics.readonly',
+            ux_mode: 'popup',
+            callback: function (resp) {
+              if (resp.error) { alert(resp.error + (resp.error_description ? ': ' + resp.error_description : '')); return; }
+              if (!resp.code) return;
+              var xhr = new XMLHttpRequest();
+              xhr.open('POST', '/oauth/gis-code', true);
+              xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+              xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+              xhr.onload = function () {
+                try {
+                  var j = JSON.parse(xhr.responseText || '{}');
+                  if (xhr.status === 200 && j.ok) { window.location.href = '/?oauth_ok=1'; return; }
+                  alert(j.error || 'No se pudo completar el inicio de sesión.');
+                } catch (e) {
+                  alert(xhr.responseText || 'Error de red');
+                }
+              };
+              xhr.onerror = function () { alert('Error de red al contactar el servidor.'); };
+              xhr.send('code=' + encodeURIComponent(resp.code));
+            }
+          });
+        }
+        function requestGoogleGISLogin() {
+          if (!__gisCodeClient) {
+            alert('Cliente Google no cargado. Comprueba la consola del navegador y que exista Client ID.');
+            return;
+          }
+          __gisCodeClient.requestCode({ prompt: 'consent' });
+        }
+        </script>
       % end
     % else:
-      <span class="hint">OAuth no configurado. Crea <code>client_secret.json</code> o variables <code>GOOGLE_OAUTH_*</code>; guía en <code>docs/google-oauth-setup.md</code>.</span>
+      <div class="oauth-step1">
+        <h2>Paso 1 — Registrar esta aplicación (una vez)</h2>
+        <p style="margin:0 0 0.5rem 0">Google <strong>no permite</strong> que cualquier página llame a sus APIs (p. ej. listar propiedades de GA4) sin antes registrar <strong>qué programa eres</strong>. Eso se hace gratis en la consola de desarrolladores de Google (a veces llamada «Google Cloud»): obtienes un <strong>ID de cliente</strong> y un <strong>secreto</strong> que identifican <em>esta herramienta</em>, no tu usuario de Analytics.</p>
+        <p style="margin:0 0 0.5rem 0"><strong>Después de guardar</strong> aparecerá aquí el <strong>Paso 2: botón «Iniciar sesión con Google»</strong> para que cada quien entre con su Gmail y se rellenen las listas.</p>
+        <details class="oauth-details">
+          <summary>¿Por qué no basta con «loguearme en GA4»?</summary>
+          <p style="margin:0">GA4 es una web aparte. Para que <em>otra</em> app (esta) pida datos en nombre de quien usa el navegador, Google exige el registro de la app + pantalla de consentimiento. Los datos de GA4 siguen siendo los de siempre; solo añades permiso de «esta herramienta puede listar propiedades si el usuario acepta».</p>
+        </details>
+      </div>
+      <div class="oauth-setup">
+        <p class="hint" style="margin-top:0">Pega los valores de la consola de Google (cliente tipo <strong>aplicación web</strong>) o usa el archivo <code>client_secret.json</code> en la raíz del proyecto. Guía paso a paso: <code>docs/google-oauth-setup.md</code>.</p>
+        <form method="post" action="/oauth/setup-credentials">
+          <label for="setup_client_id">ID de cliente (Client ID)</label>
+          <input type="text" id="setup_client_id" name="setup_client_id" autocomplete="off" placeholder="xxxxx.apps.googleusercontent.com" required />
+          <label for="setup_client_secret">Secreto de cliente (Client secret)</label>
+          <input type="password" id="setup_client_secret" name="setup_client_secret" autocomplete="new-password" required />
+          <label for="setup_redirect_uri">URI de redirección (la misma que en la consola)</label>
+          <input type="text" id="setup_redirect_uri" name="setup_redirect_uri" value="{{oauth_setup_redirect_hint}}" required />
+          <p class="hint">En la consola del cliente OAuth, en <strong>URI de redirección autorizados</strong>, debe existir exactamente esta ruta (p. ej. <code>http://127.0.0.1:8765/oauth/callback</code>). Para el botón de Google también hace falta <strong>Origen JavaScript autorizado</strong> = solo el origen sin ruta (p. ej. <code>http://127.0.0.1:8765</code>).</p>
+          <button type="submit">Guardar y activar «Iniciar sesión con Google»</button>
+        </form>
+      </div>
     % end
   </div>
 

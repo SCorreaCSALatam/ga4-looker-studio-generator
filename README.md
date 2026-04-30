@@ -1,66 +1,104 @@
-# GA4 → Looker Studio: generador de enlaces (Linking API)
+# GA4 → Looker Studio — Generador de enlaces
 
-Herramienta mínima alineada con el plan: **no crea gráficos por API**; construye la URL oficial para crear un informe en Looker Studio a partir de una **plantilla** y una propiedad GA4 (`accountId`, `propertyId`).
+Herramienta en **Python** para generar URLs de la [Looker Studio Linking API](https://developers.google.com/looker-studio/integrate/linking-api): crea **nuevas copias** de un informe plantilla apuntando a otra propiedad **GA4**, sin exponer gráficos por API. Incluye **CLI** (solo biblioteca estándar) e **interfaz web** opcional ([Bottle](https://bottlepy.org/) + OAuth).
 
-## Documentación
+---
 
-| Documento | Contenido |
-|-------------|-------------|
-| [docs/template-looker-studio.md](docs/template-looker-studio.md) | Cómo crear la plantilla (tabla, serie temporal, filtro por evento) y dónde leer `reportId` y alias del origen (p. ej. `ds1`). |
-| [docs/governance.md](docs/governance.md) | Credenciales del origen (propietario vs visor) y permisos GA4. |
-| [docs/url-params-phase2.md](docs/url-params-phase2.md) | Enlaces con `?params=` para informes ya guardados. |
-| [docs/google-oauth-setup.md](docs/google-oauth-setup.md) | OAuth + Admin API para elegir cuenta y propiedad GA4 en la interfaz web. |
-| [docs/deploy.md](docs/deploy.md) | Subir el proyecto a Git y desplegarlo en un servidor (varios usuarios). |
+## Objetivo
+
+| Qué hace | Qué no hace |
+|----------|----------------|
+| Construye la URL oficial `https://lookerstudio.google.com/reporting/create?...` con `c.reportId` (plantilla) y parámetros del conector GA4 (`accountId`, `propertyId`, etc.). | No crea ni edita gráficos por API. Los datos siguen viniendo del **conector nativo GA4** en Looker Studio. |
+| Opcionalmente genera enlaces con `?params=` para informes **ya guardados** (fase 2). | No sustituye permisos de GA4 ni la configuración de la plantilla en Looker Studio. |
+
+**Caso de uso típico:** una plantilla de informe en Looker Studio + esta herramienta → enlaces por propiedad GA4 para que cada quien abra el enlace en el navegador (con una cuenta Google con acceso a esa propiedad).
+
+---
 
 ## Requisitos
 
-- Python 3.10+.
-- **CLI** (`linking_url.py`): solo biblioteca estándar.
-- **Interfaz web**: [Bottle](https://bottlepy.org/), Google OAuth y cliente HTTP (`pip install -r requirements.txt`).
+- **Python 3.10+**
+- **CLI:** solo la biblioteca estándar.
+- **Web:** dependencias en [`requirements.txt`](requirements.txt) (`bottle`, `google-auth`, `google-auth-oauthlib`, `requests`).
 
-## Interfaz web (Bottle)
+---
 
-Formulario local en el navegador (plantilla, informe guardado con `params`, opciones avanzadas).
-
-Tras configurar OAuth (ver [docs/google-oauth-setup.md](docs/google-oauth-setup.md)), puedes **Conectar con Google** y elegir **cuenta y propiedad GA4** en un desplegable sin teclear los IDs (sigue existiendo la opción manual).
+## Instalación
 
 ```bash
+git clone https://github.com/SCorreaCSALatam/ga4-looker-studio-generator.git
+cd ga4-looker-studio-generator
 pip install -r requirements.txt
+```
+
+> El nombre del repositorio en GitHub puede ser `ga4-looker-studio-generator`; la carpeta local puede tener otro nombre.
+
+---
+
+## Uso rápido
+
+### Interfaz web
+
+```bash
 python src/web_app.py
 ```
 
-Abre **http://127.0.0.1:8765** (o el puerto que definas). Solo escucha en `127.0.0.1`. Detén con `Ctrl+C`.
+Abre en el navegador la URL que muestra la consola (por defecto **http://127.0.0.1:8765**). Desde ahí puedes:
 
-Variables útiles en local: **`PORT`**, **`GA_LS_BASE_URL`** (debe coincidir con la URI de redirección OAuth). Para **varios usuarios en Internet**: **`GA_LS_HOST=0.0.0.0`**, HTTPS, **`GA_LS_SESSION_SECRET`**, **`GA_LS_DATA_DIR`** persistente y variables OAuth públicas; detalle en [docs/deploy.md](docs/deploy.md).
+1. **Paso 1 (una vez):** registrar la app ante Google — formulario con Client ID / secret o archivo `client_secret.json` (ver [docs/google-oauth-setup.md](docs/google-oauth-setup.md)).
+2. **Paso 2:** **Iniciar sesión con Google** (o conexión por redirección) para rellenar cuentas y propiedades GA4.
+3. Rellenar **Report ID** de la plantilla y generar la URL (modo plantilla o informe guardado con `params`).
 
-### Subir a Git (GitHub)
+**Local:** por defecto escucha en `127.0.0.1`. **Servidor (p. ej. Render):** define `GA_LS_HOST=0.0.0.0`, `GA_LS_BASE_URL` con tu URL pública HTTPS, `GA_LS_SESSION_SECRET`, credenciales OAuth por variables de entorno y, si aplica, `GA_LS_DATA_DIR` persistente. Detalle en [docs/deploy.md](docs/deploy.md).
 
-No puedo usar tu cuenta desde aquí. Pasos resumidos: `git init`, `git add`, `git commit`, crear repo vacío en GitHub, `git remote add origin …`, `git push`. Instrucciones completas en [docs/deploy.md](docs/deploy.md).
-
-## Uso rápido (CLI)
-
-Desde la carpeta del proyecto:
+### CLI — crear informe desde plantilla
 
 ```bash
-python src/linking_url.py --report-id TU_PLANTILLA_UUID --account-id 12345678 --property-id 87654321 --report-name "Eventos body menu"
+python src/linking_url.py --report-id TU_UUID_PLANTILLA --account-id CUENTA_GA --property-id PROPIEDAD_GA4 --report-name "Nombre del informe"
 ```
 
-Opciones útiles:
+Opciones frecuentes: `--ds-alias ds1`, `--refresh-fields`, `--mode edit`, `--embed`. Ver `python src/linking_url.py --help`.
 
-- `--refresh-fields` — `refreshFields=true` al cambiar de propiedad con campos distintos.
-- `--ds-alias ds1` — alias del origen en la plantilla (por defecto `ds1` en este repo). Si tu plantilla usa otro (`ds0`, `ds2`, …), pásalo explícito; véase [docs/template-looker-studio.md](docs/template-looker-studio.md#error-alias-ds).
-- `--mode edit` — abrir en modo edición.
-- `--embed` — URL con `/embed/reporting/create` (para iframes).
+### CLI — informe guardado con `?params=` (fase 2)
 
-Para un informe **ya guardado** con filtros por URL (fase 2), usa `--saved-report-id`, `--saved-page-id` y **uno** de `--params-json` o `--params-json-file` (recomendado en Windows); ver [docs/url-params-phase2.md](docs/url-params-phase2.md).
+```bash
+python src/linking_url.py --saved-report-id ... --saved-page-id ... --params-json-file examples/params-sample.json
+```
 
-La salida es una sola línea: **cópiala y ábrela en el navegador** con sesión Google que tenga acceso a esa propiedad GA4.
+Documentación: [docs/url-params-phase2.md](docs/url-params-phase2.md).
 
-## Variables de entorno (opcional)
+---
 
-- **CLI**: puedes envolver el script en un alias que lea `LOOKER_TEMPLATE_REPORT_ID`, etc.; el CLI no las lee por defecto.
-- **Web + OAuth**: `GOOGLE_OAUTH_*`, `PORT`, `GA_LS_BASE_URL`, y en servidor `GA_LS_HOST`, `GA_LS_SESSION_SECRET`, `GA_LS_DATA_DIR`, `GA_LS_COOKIE_SECURE` (ver [docs/deploy.md](docs/deploy.md)).
+## Variables de entorno (resumen)
+
+| Ámbito | Variables |
+|--------|-----------|
+| Web local | `PORT`, `GA_LS_BASE_URL` (alineada con OAuth en Google Cloud). |
+| Web en servidor | Además: `GA_LS_HOST`, `GA_LS_SESSION_SECRET`, `GA_LS_DATA_DIR`, `GA_LS_COOKIE_SECURE`, `GOOGLE_OAUTH_*`. |
+| OAuth | `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI` o `client_secret.json` / formulario en la UI. |
+
+---
+
+## Documentación del repositorio
+
+| Documento | Contenido |
+|-----------|-------------|
+| [docs/template-looker-studio.md](docs/template-looker-studio.md) | Plantilla en Looker Studio, `reportId`, alias del origen (`ds1`, …). |
+| [docs/google-oauth-setup.md](docs/google-oauth-setup.md) | Google Cloud: API, consentimiento, cliente web, orígenes JS, primer login. |
+| [docs/deploy.md](docs/deploy.md) | Git, Render/servidor, variables de producción. |
+| [docs/governance.md](docs/governance.md) | Credenciales del origen en Looker Studio y permisos GA4. |
+| [docs/url-params-phase2.md](docs/url-params-phase2.md) | Enlaces con `params` en informes ya guardados. |
+
+---
+
+## Retomar el trabajo o el contexto (Cursor / IA)
+
+- El **estado del chat** lo gestiona Cursor; no vive en el repo.
+- Para que un asistente (o tú más adelante) retome **el mismo contexto técnico**, abre esta carpeta como proyecto y revisa este **README** y la carpeta **`docs/`**: ahí está el comportamiento acordado (plantilla, OAuth, despliegue).
+- Si añades funcionalidad, actualiza **README** o la doc enlazada en la misma PR/commit para mantener una sola fuente de verdad.
+
+---
 
 ## Licencia
 
-Uso interno / dominio público según prefieras; el repositorio no incluye licencia explícita.
+Sin licencia explícita en el repositorio: uso interno o elige una licencia (MIT, etc.) y añade un archivo `LICENSE` cuando lo definas.

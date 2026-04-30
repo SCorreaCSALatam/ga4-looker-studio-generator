@@ -55,9 +55,50 @@ def _token_file_for_session(session_id: str) -> Path:
     return _tokens_dir() / f"{h}.json"
 
 
+def _client_secret_candidate_paths() -> list[Path]:
+    """Orden: repo (desarrollo), luego carpeta de datos del usuario (configuración por UI)."""
+    return [_repo_root() / "client_secret.json", data_root() / "client_secret.json"]
+
+
 def client_secrets_path() -> Path | None:
-    p = _repo_root() / "client_secret.json"
-    return p if p.is_file() else None
+    for p in _client_secret_candidate_paths():
+        if p.is_file():
+            return p
+    return None
+
+
+def user_client_secret_path() -> Path:
+    """Ruta donde la interfaz web guarda el JSON del cliente OAuth."""
+    return data_root() / "client_secret.json"
+
+
+def save_user_client_secret(client_id: str, client_secret: str, redirect_uri: str) -> None:
+    """
+    Guarda credenciales OAuth en disco (solo tipo aplicación web).
+    Usado por el asistente en la interfaz para no editar archivos a mano.
+    """
+    cid = (client_id or "").strip()
+    csec = (client_secret or "").strip()
+    ruri = (redirect_uri or "").strip()
+    if not cid or not csec or not ruri:
+        raise ValueError("Client ID, client secret y URI de redirección son obligatorios.")
+    cfg = {
+        "web": {
+            "client_id": cid,
+            "client_secret": csec,
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "redirect_uris": [ruri],
+        }
+    }
+    dest = user_client_secret_path()
+    tmp = dest.with_suffix(dest.suffix + ".tmp")
+    tmp.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    tmp.replace(dest)
+    try:
+        dest.chmod(0o600)
+    except OSError:
+        pass
 
 
 def load_client_config() -> dict[str, Any] | None:
@@ -85,6 +126,22 @@ def load_client_config() -> dict[str, Any] | None:
             "redirect_uris": [redirect],
         }
     }
+
+
+def effective_oauth_redirect_uri() -> str:
+    """URI de callback registrada en el cliente OAuth (archivo o variables)."""
+    cfg = load_client_config()
+    if cfg:
+        web = cfg.get("web") or cfg.get("installed") or {}
+        uris = web.get("redirect_uris") or []
+        if isinstance(uris, list) and uris:
+            u = str(uris[0]).strip()
+            if u:
+                return u
+    return os.environ.get(
+        "GOOGLE_OAUTH_REDIRECT_URI",
+        "http://127.0.0.1:8765/oauth/callback",
+    ).strip()
 
 
 def load_credentials(session_id: str) -> Credentials | None:
@@ -120,6 +177,43 @@ def clear_credentials(session_id: str) -> None:
     p = _token_file_for_session(session_id)
     if p.is_file():
         p.unlink()
+
+
+def oauth_web_client_id() -> str | None:
+    """Client ID público (aplicación web o installed) para Google Identity Services."""
+    cfg = load_client_config()
+    if not cfg:
+        return None
+    web = cfg.get("web") or cfg.get("installed") or {}
+    cid = web.get("client_id")
+    if not cid:
+        return None
+    return str(cid).strip()
+
+
+def exchange_authorization_code_gis(code: str) -> Credentials:
+    """
+    Canjea el código de autorización devuelto por Google Identity Services
+    (modelo de código, popup; redirect_uri literal ``postmessage`` en el token endpoint).
+    """
+    cfg = load_client_config()
+    if not cfg:
+        raise RuntimeError("OAuth no configurado")
+    flow = Flow.from_client_config(
+        cfg,
+        scopes=SCOPES,
+        redirect_uri="postmessage",
+    )
+    try:
+        flow.fetch_token(code=code.strip())
+    except Exception as e:  # noqa: BLE001
+        raise RuntimeError(
+            "No se pudo canjear el código. En Google Cloud, el cliente OAuth debe tener "
+            "«Orígenes JavaScript autorizados» con el origen de esta app (p. ej. "
+            "http://127.0.0.1:8765). Detalle: "
+            + str(e)
+        ) from e
+    return flow.credentials
 
 
 def create_flow(redirect_uri: str) -> Flow:

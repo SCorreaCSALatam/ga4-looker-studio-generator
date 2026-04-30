@@ -92,7 +92,16 @@ def _redirect_base() -> str:
     return os.environ.get("GA_LS_BASE_URL", "http://127.0.0.1:8765").rstrip("/")
 
 
-def _oauth_callback_url() -> str:
+def _oauth_setup_redirect_hint() -> str:
+    """Valor sugerido para el formulario de credenciales (Host actual si aplica)."""
+    if ga_oauth.load_client_config():
+        return ga_oauth.effective_oauth_redirect_uri()
+    host = request.get_header("Host", "")
+    if host:
+        proto = (request.get_header("X-Forwarded-Proto", "http") or "http").split(",")[0].strip()
+        if proto not in ("http", "https"):
+            proto = "http"
+        return f"{proto}://{host.split(',')[0].strip()}/oauth/callback"
     return _redirect_base() + "/oauth/callback"
 
 
@@ -128,6 +137,8 @@ def _defaults() -> dict:
         "ga_list_error": "",
         "oauth_flash_ok": False,
         "oauth_flash_err": "",
+        "oauth_flash_cfg_ok": False,
+        "oauth_setup_redirect_hint": "",
     }
 
 
@@ -154,6 +165,8 @@ def _ga_ui_context() -> dict:
 def _merge_query_flashes(ctx: dict) -> None:
     if request.query.get("oauth_ok"):
         ctx["oauth_flash_ok"] = True
+    if request.query.get("oauth_cfg_ok"):
+        ctx["oauth_flash_cfg_ok"] = True
     err = request.query.get("oauth_err", "").strip()
     if err:
         ctx["oauth_flash_err"] = urllib.parse.unquote(err)
@@ -220,8 +233,10 @@ def _fill_saved_from_form(ctx: dict) -> None:
 
 def _render_index(ctx: dict) -> str:
     _merge_query_flashes(ctx)
+    ctx["oauth_setup_redirect_hint"] = _oauth_setup_redirect_hint()
     g = _ga_ui_context()
     ctx.update(g)
+    ctx["gis_client_id_json"] = json.dumps(ga_oauth.oauth_web_client_id())
     if ctx.get("oauth_connected") and ctx.get("ga_groups") and not ctx.get("ga_manual_checked"):
         ctx["ga_manual_inputs_disabled"] = "disabled"
     else:
@@ -235,11 +250,47 @@ def index():
     return _render_index(ctx)
 
 
+@app.post("/oauth/setup-credentials")
+def oauth_setup_credentials():
+    cid = request.forms.get("setup_client_id", "").strip()
+    csec = request.forms.get("setup_client_secret", "").strip()
+    ruri = request.forms.get("setup_redirect_uri", "").strip()
+    try:
+        ga_oauth.save_user_client_secret(cid, csec, ruri)
+    except ValueError as e:
+        bottle.redirect("/?oauth_err=" + urllib.parse.quote(str(e)))
+    except OSError as e:
+        bottle.redirect("/?oauth_err=" + urllib.parse.quote(f"No se pudo guardar: {e}"))
+    bottle.redirect("/?oauth_cfg_ok=1")
+
+
+@app.post("/oauth/gis-code")
+def oauth_gis_code():
+    """Canjea código del botón Google Identity Services (Iniciar sesión con Google)."""
+    response.content_type = "application/json; charset=utf-8"
+    xhr = (request.get_header("X-Requested-With") or "").strip().lower()
+    if xhr != "xmlhttprequest":
+        response.status = 400
+        return json.dumps({"error": "Cabecera X-Requested-With requerida."})
+    code = (request.forms.get("code") or "").strip()
+    if not code:
+        response.status = 400
+        return json.dumps({"error": "Falta el código de autorización."})
+    sid = _session_id()
+    try:
+        creds = ga_oauth.exchange_authorization_code_gis(code)
+    except Exception as e:  # noqa: BLE001
+        response.status = 400
+        return json.dumps({"error": str(e)})
+    ga_oauth.save_credentials(sid, creds)
+    return json.dumps({"ok": True})
+
+
 @app.route("/connect")
 def connect():
     sid = _session_id()
     try:
-        flow = ga_oauth.create_flow(_oauth_callback_url())
+        flow = ga_oauth.create_flow(ga_oauth.effective_oauth_redirect_uri())
     except RuntimeError as e:
         bottle.redirect("/?oauth_err=" + urllib.parse.quote(str(e)))
     res = flow.authorization_url(
